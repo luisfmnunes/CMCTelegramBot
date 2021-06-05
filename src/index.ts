@@ -46,6 +46,21 @@ bot.command('comandos', ctx=> {
   });
 })
 
+bot.command('adm', ctx=> {
+  let member = ctx.from;
+  ctx.getChatAdministrators()
+  .then( members => {
+    if(members.find(adm => member.id == adm.user.id )){
+      ctx.reply("Tu é adm");
+    } else {
+      ctx.reply("Tu não é adm");
+    }
+  })
+  .catch( err => {
+    console.log("Error catching adm command: " + err);
+  });
+});
+
 console.log("Launching Bot");
 bot.launch();
 // const secretPath = `telegraf/${bot.secretPathComponent()}`;
