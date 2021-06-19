@@ -9,5 +9,8 @@ if (token === undefined) {
 }
 
 const bot = new Telegraf(token);
+let chatid = 0;
 
-export default bot;
+let setChatId = (value: number) => chatid = value;
+
+export {bot, chatid, setChatId};
