@@ -1,7 +1,8 @@
 import { Context } from 'telegraf';
-import { text } from 'telegraf/typings/button';
 import {bot, chatid, setChatId} from '../bot/bot';
-import utils from './utils'
+import {cooldown} from './utils'
+import {checkNewTokens, CMC_Data, getQuery, tokenString} from '../api/query'
+import { randomInt } from 'crypto';
 
 async function is_adm( ctx: Context ){
     let adms = await ctx.getChatAdministrators()
@@ -24,6 +25,10 @@ let timers: { [key: string]: number } = {
     'rompeu_reply': Date.now() - 60000
 };
 
+const wait = async (ms: number) => {
+    await new Promise(r => setTimeout(r,ms));
+};
+
 async function setup(){
     bot.start( ctx => {
         ctx.reply('HOJE EU TO POMPOSO!');
@@ -36,7 +41,7 @@ async function setup(){
     });
 
     bot.command('rompeu', ctx => {
-        if(utils.cooldown(timers.rompeu,Date.now(),0.125)){
+        if(cooldown(timers.rompeu,Date.now(),0.125)){
             console.log('Comando "rompeu" em cooldown');
             // ctx.reply('Comando em cooldown');
             return;
@@ -46,7 +51,7 @@ async function setup(){
         timers.rompeu = Date.now(); 
     });
     bot.command('queda', ctx => {
-        if(utils.cooldown(timers.queda, Date.now(), 0.125)){
+        if(cooldown(timers.queda, Date.now(), 0.125)){
             console.log('Comando "queda" em cooldown');
             return;
         }
@@ -55,7 +60,7 @@ async function setup(){
         timers.queda = Date.now();
     });
     bot.command('alta', ctx => {
-        if(utils.cooldown(timers.alta, Date.now(), 0.125)){
+        if(cooldown(timers.alta, Date.now(), 0.125)){
             console.log('Comando "alta" em cooldown');
             return;
         }
@@ -69,7 +74,9 @@ async function setup(){
             commands.forEach((command, i) => {
             message += i + " - /" + command.command + ": " + command.description + "\n";
             });
-            ctx.reply(message);
+            ctx.reply(message).catch(err=>{
+                wait(err.response.parameters.retry_after*1001);
+            }).then(() => ctx.reply(message));
         }).catch(err => {
             console.log("Error listing commands: " + err);
         });
@@ -104,27 +111,69 @@ async function setup(){
     })
  
     bot.hears(/rompeu+/i, ctx => {
-        if(utils.cooldown(timers.rompeu_reply, Date.now(), 1)) return;
+        if(cooldown(timers.rompeu_reply, Date.now(), 1)) return;
         ctx.reply('ROMPEU ROMPEU ROMPUE HEUaHeUAhUAHurAHEUAHeuAh').catch( err => {
             console.log('Error: ' + err );
         });
         timers.rompeu_reply = Date.now();
     });
 
-    bot.use(async (ctx, next) => {
-        const start = Date.now();
-        await next();
-        const ms = Date.now() - start;
-        console.log('Response time: %sms', ms);
-    });
+//    bot.use(async (ctx, next) => {
+//        const start = Date.now();
+//        await next();
+//        const ms = Date.now() - start;
+//        console.log('Response time: %sms', ms);
+//    });
 
     setInterval(async () => {
-        await bot.telegram.sendMessage(chatid, "São " + Date.now.toString())
-        .then( ctx => {
-            console.log(ctx.message_id + " " + ctx.text);
-        })
-        .catch( err => console.log(err));
-    }, 5*1000);
+        if(!chatid) return;
+        let res = await checkNewTokens();
+        if(res){
+            await res.forEach( async (token: CMC_Data) => {
+                await bot.telegram.sendMessage(chatid, 
+                                            tokenString(token.name, 
+                                                        token.symbol, 
+                                                        token.quote.USD.price, 
+                                                        token.quote.USD.market_cap, 
+                                                        token.quote.USD.percent_change_1h,
+                                                        token.quote.USD.percent_change_24h, 
+                                                        token.date_added,
+                                                        token.total_supply,
+                                                        token.platform.token_address))
+                .then( async msg => {
+                    await wait(2000);
+                })
+                .catch( async err => {
+                    console.log(err);
+                    await wait(err.response.parameters.retry_after*1001).then(() => bot.telegram.sendMessage(chatid, 
+                        tokenString(token.name, 
+                                    token.symbol, 
+                                    token.quote.USD.price, 
+                                    token.quote.USD.market_cap, 
+                                    token.quote.USD.percent_change_1h,
+                                    token.quote.USD.percent_change_24h, 
+                                    token.date_added,
+                                    token.total_supply,
+                                    token.platform.token_address))
+                        );                   
+                });
+            });
+            
+            if(randomInt(12)%4 && res.length > 0){
+                await bot.telegram.sendMessage(chatid, "Achou o bot legal?\nFez um lucro massa?\nVocê pode doar tokens para apoiar o projeto na seguinte carteira: \n\n0x68e047CEe46f4403aa4196e72dd9E4e7BF427aD3", {parse_mode: 'Markdown'})
+                .catch( async err => {
+                    console.log(err);
+                    await wait(err.response.parameters.retry_after*1001)
+                    .then( () => bot.telegram.sendMessage(chatid, "Achou o bot legal?\nFez um lucro massa?\nVocê pode doar tokens (BNB/BUSD) para apoiar o projeto na seguinte carteira: \n\n0x68e047CEe46f4403aa4196e72dd9E4e7BF427aD3", {parse_mode: 'Markdown'}));
+                })
+            }
+            // console.log(`${res.length} tokens found`);
+        }
+
+        // await bot.telegram.sendMessage(chatid, tokenString(res.data[0].name, res.data[0].symbol, "Not Defined", res.data[0].date_added, res.data[0].total_supply), {parse_mode: 'Markdown'})
+        // .catch( err => console.log(err));
+        // await bot.telegram.sendMessage(chatid, "São " + new Date().toString())
+    }, 5*60000);
 };
 
 function launch(){
