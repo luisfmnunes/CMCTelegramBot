@@ -74,16 +74,17 @@ async function checkNewTokens(){
         last_check = new Date();
         return;
     }
-    let res = await getQuery().catch(err => console.log(err));
-    console.log(res.data.slice(0,4));
-    let filter = res.data.filter( (token: CMC_Data) => ((new Date(token.date_added) > last_check) && token.platform.symbol == 'BNB'));
-    if(filter.lenght)
-        last_check = new Date(res.data.filter.reduce( (a: CMC_Data, b: CMC_Data) => a.date_added > b.date_added ? a : b).date_added + 1000*3600);
-        console.log(last_check);
+    let res = await getQuery().catch(err => {console.log(err); return});
+    // console.log(res.data.slice(0,4));
+    let filter = res.data.filter( (token: CMC_Data) => (new Date(token.date_added) > last_check));
+    if(filter.length){
+        last_check = new Date();
+        console.log(`Last Tokens Found: ${last_check}`);
+    }
     return filter
 }
 
-function tokenString(name: string, symbol: string, price: number, mc: number, phour: number, pday: number, date: string, supply: number, contract: string): string{
-    return `New Token Found on CMC! \n - Name: ${name}\n - Symbol ${symbol}\n - Price: ${price}\n - MarketCap: ${mc}\n - Percent Change (1h): ${phour}\n - Percent Change (24h): ${pday}\n - Added: ${new Date(date).toString()}\n - Total Supply: ${supply}\n - Contract: ${contract}`;
+function tokenString(name: string, symbol: string, price: number, mc: number, phour: number, pday: number, date: string, supply: number, platform: string, contract: string): string{
+    return `New Token Found on CMC! \n - Name: ${name}\n - Symbol ${symbol}\n - Price: ${price}\n - MarketCap: ${mc}\n - Percent Change (1h): ${phour}\n - Percent Change (24h): ${pday}\n - Added: ${new Date(date).toString()}\n - Total Supply: ${supply}\n - **Network**: ${platform}\n - Contract: ${contract}`;
 };
 export {getQuery, tokenString, checkNewTokens, CMC_Data, iUSD, iQuote};

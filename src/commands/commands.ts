@@ -129,8 +129,9 @@ async function setup(){
         if(!chatid) return;
         let res = await checkNewTokens();
         if(res){
-            await res.forEach( async (token: CMC_Data) => {
-                await bot.telegram.sendMessage(chatid, 
+            for await (const token of res){
+                if(token == null) continue;
+                bot.telegram.sendMessage(chatid, 
                                             tokenString(token.name, 
                                                         token.symbol, 
                                                         token.quote.USD.price, 
@@ -139,12 +140,12 @@ async function setup(){
                                                         token.quote.USD.percent_change_24h, 
                                                         token.date_added,
                                                         token.total_supply,
-                                                        token.platform.token_address))
-                .then( async msg => {
-                    await wait(2000);
-                })
+                                                        token.platform.name,
+                                                        token.platform.token_address), {parse_mode: 'Markdown'})
                 .catch( async err => {
                     console.log(err);
+                    if(err.response == undefined)
+                        return
                     await wait(err.response.parameters.retry_after*1001).then(() => bot.telegram.sendMessage(chatid, 
                         tokenString(token.name, 
                                     token.symbol, 
@@ -154,19 +155,21 @@ async function setup(){
                                     token.quote.USD.percent_change_24h, 
                                     token.date_added,
                                     token.total_supply,
-                                    token.platform.token_address))
+                                    token.platform.name,
+                                    token.platform.token_address), {parse_mode: 'Markdown'})
                         );                   
                 });
-            });
-            
+                await wait(1000);
+            }
+
             if(randomInt(12)%4 && res.length > 0){
-                await bot.telegram.sendMessage(chatid, "Achou o bot legal?\nFez um lucro massa?\nVocê pode doar tokens para apoiar o projeto na seguinte carteira: \n\n0x68e047CEe46f4403aa4196e72dd9E4e7BF427aD3", {parse_mode: 'Markdown'})
+                bot.telegram.sendMessage(chatid, "Achou o bot legal?\nFez um lucro massa?\nVocê pode doar tokens para apoiar o projeto na seguinte carteira: \n\n0x68e047CEe46f4403aa4196e72dd9E4e7BF427aD3", {parse_mode: 'Markdown'})
                 .catch( async err => {
                     console.log(err);
                     await wait(err.response.parameters.retry_after*1001)
                     .then( () => bot.telegram.sendMessage(chatid, "Achou o bot legal?\nFez um lucro massa?\nVocê pode doar tokens (BNB/BUSD) para apoiar o projeto na seguinte carteira: \n\n0x68e047CEe46f4403aa4196e72dd9E4e7BF427aD3", {parse_mode: 'Markdown'}));
                 })
-            }
+            }   
             // console.log(`${res.length} tokens found`);
         }
 
